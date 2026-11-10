@@ -333,6 +333,21 @@ class Keys:
         DT_B_C_RMS     = "{arch}.ssm.dt_b_c_rms"
         NORM_EPSILON   = "{arch}.ssm.norm_epsilon"
 
+    class Hnet:
+        D_ENC        = "{arch}.d_enc"
+        D_MAIN       = "{arch}.d_main"
+        D_DEC        = "{arch}.d_dec"
+        N_ENC        = "{arch}.n_enc"
+        N_MAIN       = "{arch}.n_main"
+        N_DEC        = "{arch}.n_dec"
+        N_HEAD_MAIN  = "{arch}.n_head_main"
+        N_HEAD_ENC   = "{arch}.n_head_enc"
+        HEAD_DIM_ENC = "{arch}.head_dim_enc"
+        D_FF_MAIN    = "{arch}.d_ff_main"
+        TARGET_RATIO = "{arch}.target_ratio"
+        ROPE_BASE    = "{arch}.rope_base"
+        DECHUNK_MODE = "{arch}.dechunk_mode"
+
     class KDA:
         HEAD_DIM         = "{arch}.kda.head_dim"
         SAFE_GATE        = "{arch}.kda.safe_gate"
@@ -658,6 +673,7 @@ class MODEL_ARCH(IntEnum):
     ARWKV7           = auto()
     MAMBA            = auto()
     MAMBA2           = auto()
+    HNET             = auto()
     MAPLE            = auto()
     JAMBA            = auto()
     XVERSE           = auto()
@@ -1102,6 +1118,34 @@ class MODEL_TENSOR(IntEnum):
     INDEXER_KPOOL_APE    = auto()
     ATTN_V_GATE          = auto() # k2-horizon MoVA router
     ATTN_V_EXP           = auto() # k2-horizon MoVA value experts
+    HNET_ENC_IN          = auto()
+    HNET_ENC_CONV1D      = auto()
+    HNET_ENC_DT          = auto()
+    HNET_ENC_A           = auto()
+    HNET_ENC_D           = auto()
+    HNET_ENC_SSM_NORM    = auto()
+    HNET_ENC_OUT         = auto()
+    HNET_ENC_NORM        = auto()
+    HNET_ENC_RMSNORM     = auto()
+    HNET_ROUTER_Q        = auto()
+    HNET_ROUTER_K        = auto()
+    HNET_BLK_QKV         = auto()
+    HNET_BLK_OUT         = auto()
+    HNET_BLK_FC1         = auto()
+    HNET_BLK_FC2         = auto()
+    HNET_BLK_NORM1       = auto()
+    HNET_BLK_NORM2       = auto()
+    HNET_BLK_RMSNORM     = auto()
+    HNET_DEC_IN          = auto()
+    HNET_DEC_CONV1D      = auto()
+    HNET_DEC_DT          = auto()
+    HNET_DEC_A           = auto()
+    HNET_DEC_D           = auto()
+    HNET_DEC_SSM_NORM    = auto()
+    HNET_DEC_OUT         = auto()
+    HNET_DEC_NORM        = auto()
+    HNET_DEC_RMSNORM     = auto()
+    HNET_RESIDUAL_PROJ   = auto()
     # vision
     V_MMPROJ             = auto()
     V_MMPROJ_FC          = auto()
@@ -1576,6 +1620,7 @@ MODEL_ARCH_NAMES: dict[MODEL_ARCH, str] = {
     MODEL_ARCH.ARWKV7:           "arwkv7",
     MODEL_ARCH.MAMBA:            "mamba",
     MODEL_ARCH.MAMBA2:           "mamba2",
+    MODEL_ARCH.HNET:             "hnet",
     MODEL_ARCH.MAPLE:            "maple",
     MODEL_ARCH.JAMBA:            "jamba",
     MODEL_ARCH.XVERSE:           "xverse",
@@ -2415,6 +2460,34 @@ TENSOR_NAMES: dict[MODEL_TENSOR, str] = {
     MODEL_TENSOR.D2T:                       "d2t",
     MODEL_TENSOR.ATTN_V_GATE:               "blk.{bid}.attn_v_gate",
     MODEL_TENSOR.ATTN_V_EXP:                "blk.{bid}.attn_v_exps",
+    MODEL_TENSOR.HNET_ENC_IN:               "enc.{bid}.mixer.in_proj",
+    MODEL_TENSOR.HNET_ENC_CONV1D:           "enc.{bid}.mixer.conv1d",
+    MODEL_TENSOR.HNET_ENC_DT:               "enc.{bid}.mixer.dt_bias",
+    MODEL_TENSOR.HNET_ENC_A:                "enc.{bid}.mixer.A_log",
+    MODEL_TENSOR.HNET_ENC_D:                "enc.{bid}.mixer.D",
+    MODEL_TENSOR.HNET_ENC_SSM_NORM:         "enc.{bid}.mixer.norm",
+    MODEL_TENSOR.HNET_ENC_OUT:              "enc.{bid}.mixer.out_proj",
+    MODEL_TENSOR.HNET_ENC_NORM:             "enc.{bid}.norm1",
+    MODEL_TENSOR.HNET_ENC_RMSNORM:          "enc.rmsnorm",
+    MODEL_TENSOR.HNET_ROUTER_Q:             "router.q_proj_layer",
+    MODEL_TENSOR.HNET_ROUTER_K:             "router.k_proj_layer",
+    MODEL_TENSOR.HNET_BLK_QKV:              "blk.{bid}.mixer.Wqkv",
+    MODEL_TENSOR.HNET_BLK_OUT:              "blk.{bid}.mixer.out_proj",
+    MODEL_TENSOR.HNET_BLK_FC1:              "blk.{bid}.mlp.fc1",
+    MODEL_TENSOR.HNET_BLK_FC2:              "blk.{bid}.mlp.fc2",
+    MODEL_TENSOR.HNET_BLK_NORM1:            "blk.{bid}.norm1",
+    MODEL_TENSOR.HNET_BLK_NORM2:            "blk.{bid}.norm2",
+    MODEL_TENSOR.HNET_BLK_RMSNORM:          "blk.rmsnorm",
+    MODEL_TENSOR.HNET_DEC_IN:               "dec.{bid}.mixer.in_proj",
+    MODEL_TENSOR.HNET_DEC_CONV1D:           "dec.{bid}.mixer.conv1d",
+    MODEL_TENSOR.HNET_DEC_DT:               "dec.{bid}.mixer.dt_bias",
+    MODEL_TENSOR.HNET_DEC_A:                "dec.{bid}.mixer.A_log",
+    MODEL_TENSOR.HNET_DEC_D:                "dec.{bid}.mixer.D",
+    MODEL_TENSOR.HNET_DEC_SSM_NORM:         "dec.{bid}.mixer.norm",
+    MODEL_TENSOR.HNET_DEC_OUT:              "dec.{bid}.mixer.out_proj",
+    MODEL_TENSOR.HNET_DEC_NORM:             "dec.{bid}.norm1",
+    MODEL_TENSOR.HNET_DEC_RMSNORM:          "dec.rmsnorm",
+    MODEL_TENSOR.HNET_RESIDUAL_PROJ:        "residual_proj",
 }
 
 MODEL_TENSORS: dict[MODEL_ARCH, list[MODEL_TENSOR]] = {
@@ -4194,6 +4267,38 @@ MODEL_TENSORS: dict[MODEL_ARCH, list[MODEL_TENSOR]] = {
         MODEL_TENSOR.SSM_D,
         MODEL_TENSOR.SSM_NORM,
         MODEL_TENSOR.SSM_OUT,
+    ],
+    MODEL_ARCH.HNET: [
+        MODEL_TENSOR.TOKEN_EMBD,
+        MODEL_TENSOR.OUTPUT,
+        MODEL_TENSOR.HNET_ENC_IN,
+        MODEL_TENSOR.HNET_ENC_CONV1D,
+        MODEL_TENSOR.HNET_ENC_DT,
+        MODEL_TENSOR.HNET_ENC_A,
+        MODEL_TENSOR.HNET_ENC_D,
+        MODEL_TENSOR.HNET_ENC_SSM_NORM,
+        MODEL_TENSOR.HNET_ENC_OUT,
+        MODEL_TENSOR.HNET_ENC_NORM,
+        MODEL_TENSOR.HNET_ENC_RMSNORM,
+        MODEL_TENSOR.HNET_ROUTER_Q,
+        MODEL_TENSOR.HNET_ROUTER_K,
+        MODEL_TENSOR.HNET_BLK_QKV,
+        MODEL_TENSOR.HNET_BLK_OUT,
+        MODEL_TENSOR.HNET_BLK_FC1,
+        MODEL_TENSOR.HNET_BLK_FC2,
+        MODEL_TENSOR.HNET_BLK_NORM1,
+        MODEL_TENSOR.HNET_BLK_NORM2,
+        MODEL_TENSOR.HNET_BLK_RMSNORM,
+        MODEL_TENSOR.HNET_DEC_IN,
+        MODEL_TENSOR.HNET_DEC_CONV1D,
+        MODEL_TENSOR.HNET_DEC_DT,
+        MODEL_TENSOR.HNET_DEC_A,
+        MODEL_TENSOR.HNET_DEC_D,
+        MODEL_TENSOR.HNET_DEC_SSM_NORM,
+        MODEL_TENSOR.HNET_DEC_OUT,
+        MODEL_TENSOR.HNET_DEC_NORM,
+        MODEL_TENSOR.HNET_DEC_RMSNORM,
+        MODEL_TENSOR.HNET_RESIDUAL_PROJ,
     ],
     MODEL_ARCH.MAPLE: [
         MODEL_TENSOR.TOKEN_EMBD,

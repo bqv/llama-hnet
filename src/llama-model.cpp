@@ -170,6 +170,8 @@ static llama_model * llama_model_mapping(llm_arch arch, const llama_model_params
             return new llama_model_mamba(params);
         case LLM_ARCH_MAMBA2:
             return new llama_model_mamba2(params);
+        case LLM_ARCH_HNET:
+            return new llama_model_hnet(params);
         case LLM_ARCH_MAPLE:
             return new llama_model_maple(params);
         case LLM_ARCH_JAMBA:
@@ -1472,8 +1474,8 @@ void llama_model_base::load_hparams(llama_model_loader & ml) {
         return;
     }
 
-    ml.get_key(LLM_KV_CONTEXT_LENGTH,          hparams.n_ctx_train);
-    ml.get_key(LLM_KV_EMBEDDING_LENGTH,        hparams.n_embd);
+    ml.get_key(LLM_KV_CONTEXT_LENGTH,          hparams.n_ctx_train, arch != LLM_ARCH_HNET);
+    ml.get_key(LLM_KV_EMBEDDING_LENGTH,        hparams.n_embd,      arch != LLM_ARCH_HNET);
     ml.get_key(LLM_KV_EMBEDDING_LENGTH_OUT,    hparams.n_embd_out_impl, false);
     ml.get_key(LLM_KV_ATTENTION_CAUSAL,        hparams.causal_attn,     false);
     ml.get_key(LLM_KV_POOLING_TYPE,            hparams.pooling_type,    false);
@@ -1485,7 +1487,15 @@ void llama_model_base::load_hparams(llama_model_loader & ml) {
         GGML_ASSERT(it != LLM_CLS_ACT_TYPES_FROM_STRING.end() && "unsupported classifier activation");
         hparams.act_cls = it->second;
     }
-    ml.get_key(LLM_KV_BLOCK_COUNT,             hparams.n_layer_all);
+    if (arch == LLM_ARCH_HNET) {
+        ml.get_key(LLM_KV_HNET_N_ENC,  hparams.hnet_n_enc);
+        ml.get_key(LLM_KV_HNET_N_MAIN, hparams.hnet_n_main);
+        ml.get_key(LLM_KV_HNET_N_DEC,  hparams.hnet_n_dec);
+
+        hparams.n_layer_all = hparams.hnet_n_enc + hparams.hnet_n_main + hparams.hnet_n_dec;
+    } else {
+        ml.get_key(LLM_KV_BLOCK_COUNT, hparams.n_layer_all);
+    }
     GGML_ASSERT(hparams.n_layer_all > 0 && hparams.n_layer_all <= LLAMA_MAX_LAYERS);
     ml.get_key(LLM_KV_NEXTN_PREDICT_LAYERS,    hparams.n_layer_nextn,   false);
     GGML_ASSERT(hparams.n_layer_nextn <= hparams.n_layer_all);
@@ -3739,6 +3749,7 @@ llama_rope_type llama_model_rope_type(const llama_model * model) {
         case LLM_ARCH_NANBEIGE:
         case LLM_ARCH_POCKETTTS:
         case LLM_ARCH_LIMITE:
+        case LLM_ARCH_HNET:
             return LLAMA_ROPE_TYPE_NORM;
         case LLM_ARCH_BAILINGMOE3:
             // VL files carry mrope sections; text-only files keep NORM rope

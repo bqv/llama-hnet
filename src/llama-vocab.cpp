@@ -2243,7 +2243,29 @@ void llama_vocab::impl::load(llama_model_loader & ml, const LLM_KV & kv) {
 
     // determine vocab type
     {
-        ml.get_key(LLM_KV_TOKENIZER_MODEL, tokenizer_model);
+        if (!ml.get_key(LLM_KV_TOKENIZER_MODEL, tokenizer_model, false)) {
+            if (kv.arch == LLM_ARCH_HNET) {
+                type = LLAMA_VOCAB_TYPE_NONE;
+                tokenizer_model = "no_vocab";
+
+                special_bos_id  = LLAMA_TOKEN_NULL;
+                special_eos_id  = LLAMA_TOKEN_NULL;
+                special_unk_id  = LLAMA_TOKEN_NULL;
+                special_sep_id  = LLAMA_TOKEN_NULL;
+                special_pad_id  = LLAMA_TOKEN_NULL;
+                special_mask_id = LLAMA_TOKEN_NULL;
+                linefeed_id     = LLAMA_TOKEN_NULL;
+
+                if (const ggml_tensor * t = ml.get_tensor_meta("token_embd.weight")) {
+                    id_to_token.resize(t->ne[1]);
+                }
+
+                return;
+            }
+
+            throw std::runtime_error(format("key not found in model: %s", kv(LLM_KV_TOKENIZER_MODEL).c_str()));
+        }
+
         ml.get_key(LLM_KV_TOKENIZER_PRE,   tokenizer_pre, false);
 
         ml.get_key(LLM_KV_TOKENIZER_TOKEN_TYPE_COUNT, n_token_types, false);

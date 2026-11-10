@@ -6,6 +6,7 @@
 #include <bitset>
 #include <cassert>
 #include <cmath>
+#include <string>
 
 // bump if necessary
 #define LLAMA_MAX_LAYERS  512
@@ -210,6 +211,19 @@ struct llama_hparams {
     uint32_t ssm_dt_rank = 0;
     uint32_t ssm_n_group = 0;
     float    ssm_norm_eps = 0.0f; // 0 = use f_norm_rms_eps
+
+    uint32_t    hnet_d_enc        = 0;
+    uint32_t    hnet_d_main       = 0;
+    uint32_t    hnet_d_dec        = 0;
+    uint32_t    hnet_n_enc        = 0;
+    uint32_t    hnet_n_main       = 0;
+    uint32_t    hnet_n_dec        = 0;
+    uint32_t    hnet_n_head_main  = 0;
+    uint32_t    hnet_n_head_enc   = 0;
+    uint32_t    hnet_head_dim_enc = 0;
+    uint32_t    hnet_d_ff_main    = 0;
+    float       hnet_target_ratio = 4.0f;
+    int32_t hnet_dechunk_mode = 0;
 
     // for MiniMax-Text-01 linear attention
     uint32_t n_embd_head_la = 0;

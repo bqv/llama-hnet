@@ -1005,6 +1005,48 @@ struct llama_model_mamba2 : public llama_model_base {
     std::unique_ptr<llm_graph_context> build_arch_graph(const llm_graph_params & params) const override;
 };
 
+struct llama_layer_hnet_mamba2 {
+    struct ggml_tensor * in_proj  = nullptr;
+    struct ggml_tensor * conv1d   = nullptr;
+    struct ggml_tensor * conv1d_b = nullptr;
+    struct ggml_tensor * dt_b     = nullptr;
+    struct ggml_tensor * a        = nullptr;
+    struct ggml_tensor * d        = nullptr;
+    struct ggml_tensor * norm     = nullptr;
+    struct ggml_tensor * out_proj = nullptr;
+    struct ggml_tensor * norm1    = nullptr;
+};
+
+struct llama_layer_hnet_main {
+    struct ggml_tensor * wqkv     = nullptr;
+    struct ggml_tensor * out_proj = nullptr;
+    struct ggml_tensor * fc1      = nullptr;
+    struct ggml_tensor * fc2      = nullptr;
+    struct ggml_tensor * norm1    = nullptr;
+    struct ggml_tensor * norm2    = nullptr;
+};
+
+struct llama_model_hnet : public llama_model_base {
+    llama_model_hnet(const struct llama_model_params & params) : llama_model_base(params) {}
+    void load_arch_hparams(llama_model_loader & ml) override;
+    void load_arch_tensors(llama_model_loader & ml) override;
+
+    std::vector<llama_layer_hnet_mamba2> enc_layers;
+    std::vector<llama_layer_hnet_mamba2> dec_layers;
+    std::vector<llama_layer_hnet_main>   main_layers;
+
+    struct ggml_tensor * enc_rmsnorm     = nullptr;
+    struct ggml_tensor * blk_rmsnorm     = nullptr;
+    struct ggml_tensor * dec_rmsnorm     = nullptr;
+    struct ggml_tensor * router_q        = nullptr;
+    struct ggml_tensor * router_k        = nullptr;
+    struct ggml_tensor * residual_proj   = nullptr;
+    struct ggml_tensor * residual_proj_b = nullptr;
+
+    [[noreturn]]
+    std::unique_ptr<llm_graph_context> build_arch_graph(const llm_graph_params & params) const override;
+};
+
 struct llama_model_maple : public llama_model_base {
     llama_model_maple(const struct llama_model_params & params) : llama_model_base(params) {}
     void load_arch_hparams(llama_model_loader & ml) override;
