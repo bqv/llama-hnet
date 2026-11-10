@@ -13,6 +13,11 @@
 #include <thread>
 #include <mutex>
 
+#ifndef _WIN32
+#include <sys/stat.h>
+#include <unistd.h>
+#endif
+
 //
 // HTTP implementation using cpp-httplib
 //
@@ -21,6 +26,7 @@ class server_http_context::Impl {
 public:
     std::vector<std::unique_ptr<httplib::Server>> servers;
     std::vector<std::string> hosts;
+    std::vector<std::string> unix_sockets;
     std::vector<std::thread> threads; // one thread per listener
     std::unique_ptr<httplib::ThreadPool> pool; // single pool shared among all listeners
     int n_threads_http = 0;
@@ -502,6 +508,18 @@ bool server_http_context::start() {
         bool was_bound;
         if (is_sock) {
             SRV_TRC("%s", "setting address family to AF_UNIX\n");
+#ifndef _WIN32
+            struct stat st;
+            if (::lstat(host.c_str(), &st) == 0) {
+                if (!S_ISSOCK(st.st_mode) || ::unlink(host.c_str()) != 0) {
+                    SRV_ERR("cannot replace non-socket file at %s\n", host.c_str());
+                    stop();
+                    listening_addresses.clear();
+                    return false;
+                }
+                SRV_TRC("removed stale socket %s\n", host.c_str());
+            }
+#endif
             srv->set_address_family(AF_UNIX);
             // AF_UNIX ignores the port, but bind_to_port requires a nonzero value.
             was_bound = srv->bind_to_port(host, 8080);
@@ -519,6 +537,9 @@ bool server_http_context::start() {
             stop();
             listening_addresses.clear();
             return false;
+        }
+        if (is_sock) {
+            pimpl->unix_sockets.push_back(host);
         }
         listening_addresses.push_back(is_sock ? string_format("unix://%s", host.c_str())
                                               : string_format("%s://%s:%d", is_ssl ? "https" : "http", common_http_format_host(host).c_str(), port));
@@ -565,6 +586,11 @@ void server_http_context::join() {
         pimpl->pool->shutdown();
         pimpl->pool.reset();
     }
+#ifndef _WIN32
+    for (const auto & host : pimpl->unix_sockets) {
+        ::unlink(host.c_str());
+    }
+#endif
 }
 
 static void set_headers(httplib::Response & res, const std::map<std::string, std::string> & headers) {
