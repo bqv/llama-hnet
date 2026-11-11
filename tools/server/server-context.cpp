@@ -1017,6 +1017,8 @@ static bool add_mtmd_chunk(const server_slot & slot, const mtmd_input_chunk * ch
 //
 
 struct server_context_impl {
+public:
+    llama_model * get_model_tgt() const { return model_tgt; }
     friend struct server_context;
 
 public:
@@ -6452,6 +6454,91 @@ void server_routes::init_routes() {
         } else {
             res->ok(get_res_models(*meta));
         }
+        return res;
+    };
+
+    this->post_segment = [this](const server_http_req & req) {
+        static std::mutex mutex_segment;
+        static llama_context * ctx_seg = nullptr;
+        std::lock_guard<std::mutex> lock(mutex_segment);
+
+        auto res = create_response();
+        const json body = json::parse(req.body);
+        if (body.count("content") == 0) {
+            res->error(format_error_response("missing content", ERROR_TYPE_INVALID_REQUEST));
+            return res;
+        }
+
+        const std::string content = body.at("content").get<std::string>();
+        if (content.empty()) {
+            res->error(format_error_response("empty content", ERROR_TYPE_INVALID_REQUEST));
+            return res;
+        }
+
+        if (ctx_seg == nullptr) {
+            llama_model * model = ctx_server.get_model_tgt();
+            if (model == nullptr) {
+                res->error(format_error_response("no model", ERROR_TYPE_UNAVAILABLE));
+                return res;
+            }
+            llama_context_params cp = llama_context_default_params();
+            cp.n_ctx = llama_model_n_ctx_train(model);
+            cp.n_batch = cp.n_ctx;
+            cp.n_ubatch = cp.n_ctx;
+            cp.n_outputs_max = 0;
+            ctx_seg = llama_init_from_model(model, cp);
+            if (ctx_seg == nullptr) {
+                res->error(format_error_response("cannot create segment context", ERROR_TYPE_SERVER));
+                return res;
+            }
+        }
+
+        const int n_bytes = (int) content.size();
+        if ((uint32_t) n_bytes > llama_n_ctx(ctx_seg)) {
+            res->error(format_error_response("content longer than the context", ERROR_TYPE_INVALID_REQUEST));
+            return res;
+        }
+
+        llama_batch batch = llama_batch_init(n_bytes, 0, 1);
+        batch.n_tokens = 0;
+        for (int i = 0; i < n_bytes; ++i) {
+            batch.token[batch.n_tokens] = (llama_token) (unsigned char) content[i];
+            batch.pos[batch.n_tokens] = i;
+            batch.n_seq_id[batch.n_tokens] = 1;
+            batch.seq_id[batch.n_tokens][0] = 0;
+            batch.logits[batch.n_tokens] = 1;
+            batch.n_tokens++;
+        }
+
+        const int rc = llama_encode(ctx_seg, batch);
+        if (rc != 0) {
+            llama_batch_free(batch);
+            res->error(format_error_response("encode failed", ERROR_TYPE_SERVER));
+            return res;
+        }
+
+        const size_t n_bounds = llama_hnet_n_boundaries(ctx_seg);
+        std::vector<int32_t> positions(n_bounds);
+        std::vector<float> probs((size_t) n_bytes);
+        llama_hnet_boundaries(ctx_seg, positions.data(), n_bounds);
+        llama_hnet_probs(ctx_seg, probs.data(), probs.size());
+        llama_batch_free(batch);
+
+        json boundaries = json::array();
+        for (size_t i = 0; i < n_bounds; ++i) {
+            boundaries.push_back(positions[i]);
+        }
+        json probabilities = json::array();
+        for (int i = 0; i < n_bytes; ++i) {
+            probabilities.push_back(probs[i]);
+        }
+
+        res->ok({
+            {"bytes",         n_bytes},
+            {"chunks",        n_bounds},
+            {"boundaries",    boundaries},
+            {"probabilities", probabilities},
+        });
         return res;
     };
 

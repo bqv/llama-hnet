@@ -200,6 +200,7 @@ static void server_register_routes(server_http_context & ctx_http, server_routes
     ctx_http.post("/v1/reranking",             ex_wrapper(routes.post_rerank));
     ctx_http.post("/v1/systemone",             ex_wrapper(routes.post_systemone));
     ctx_http.post("/tokenize",                 ex_wrapper(routes.post_tokenize));
+    ctx_http.post("/v1/segment",               ex_wrapper(routes.post_segment));
     ctx_http.post("/detokenize",               ex_wrapper(routes.post_detokenize));
     ctx_http.post("/apply-template",           ex_wrapper(routes.post_apply_template));
     // token counting

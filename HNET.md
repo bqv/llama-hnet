@@ -101,6 +101,18 @@ chunks 11 of 23 bytes
 `--json` emits the boundary positions and the per-byte boundary probabilities instead of the marked text, which
 is what the `hnet-probe` results in the Finnish write-up were measured with.
 
+## Segmenting over HTTP
+
+`llama-server` exposes `POST /v1/segment` with `{"content": "..."}`, returning byte count, chunk count, boundary
+positions and per-byte probabilities. It uses a dedicated context created on first use from the already-loaded
+model, so it shares the weights and costs only a compute buffer:
+
+```sh
+curl -s --unix-socket /run/user/1000/models/hnet.sock -X POST http://x/v1/segment \
+  -d '{"content":"Suomen kieli on vaikea."}'
+# {"bytes":23,"chunks":11,"boundaries":[0,1,4,6,12,14,15,18,19,21,22],"probabilities":[...]}
+```
+
 ## Generating text
 
 `hnet-generate` runs the pair of passes in a loop, re-encoding the whole sequence each step (there is no
@@ -131,9 +143,7 @@ If the logits agree, the C++ is right in the only sense that matters.
 - **The main stack runs `n_tokens` rows, not `n_chunk` rows.** Junk rows past the last chunk are hidden by the
   causal mask and never read, but they cost about 4x the main-stack compute at the target 4:1 chunk ratio. Fixing
   it means building the decode graph after the host step, with `n_chunk` known.
-- **No server surface.** `/v1/segment` was attempted and reverted: llama-server allocates its context for the
-  standard decode flow, and calling `llama_encode` on it trips `n_outputs_max` and the slot bookkeeping. Doing it
-  properly means plumbing a segment task type through the queue and the slot machinery, not a handler.
+- **No incremental state**, still: server generation is not wired at all, only the CLI tools generate.
 - **Single sequence, single ubatch.** Packed multi-sequence batches would need per-sequence byte maps and positions.
 - **Precision.** Logits agree with the PyTorch reference to ~0.5%, not bit-exactly: the reference runs bf16 on the
   GPU, this runs F32 on the CPU with 16-bit weights.
