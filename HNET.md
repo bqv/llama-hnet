@@ -120,6 +120,20 @@ The plan is numeric parity against the reference PyTorch stack, not a code revie
 sequence, compare logits element-wise at 1e-3, first on a 2.4M-parameter config, then on the 195M Finnish one.
 If the logits agree, the C++ is right in the only sense that matters.
 
+## Known gaps
+
+- **No incremental state.** `hnet-generate` re-encodes the whole prefix each step, which is O(n^2) and makes CPU
+  generation slow (~13 steps in about three minutes at 195M). Real generation needs per-layer SSM and conv state,
+  the router's previous hidden state, and the de-chunk EMA carried across calls.
+- **The main stack runs `n_tokens` rows, not `n_chunk` rows.** Junk rows past the last chunk are hidden by the
+  causal mask and never read, but they cost about 4x the main-stack compute at the target 4:1 chunk ratio. Fixing
+  it means building the decode graph after the host step, with `n_chunk` known.
+- **No server surface.** `/v1/segment` would be a thin handler over `llama_hnet_boundaries`, but the server's
+  slot and task machinery has to be respected, so it is not a five-line change.
+- **Single sequence, single ubatch.** Packed multi-sequence batches would need per-sequence byte maps and positions.
+- **Precision.** Logits agree with the PyTorch reference to ~0.5%, not bit-exactly: the reference runs bf16 on the
+  GPU, this runs F32 on the CPU with 16-bit weights.
+
 ## Disclosure
 
 The `hnet` architecture, converter and loading path in this fork were written with substantial AI assistance
