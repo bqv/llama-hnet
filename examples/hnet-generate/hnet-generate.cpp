@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <algorithm>
 #include <random>
 #include <string>
 #include <vector>
@@ -18,11 +19,22 @@ int main(int argc, char ** argv) {
     std::string text = argv[2];
     int n_predict = argc > 3 ? std::atoi(argv[3]) : 24;
     int n_gpu_layers = 0;
+    int top_k = 0;
     float temperature = 0.0f;
     uint32_t seed = 0;
     for (int i = 3; i < argc; ++i) {
         if (std::strcmp(argv[i], "--ngl") == 0 && i + 1 < argc) n_gpu_layers = std::atoi(argv[++i]);
         else if (std::strcmp(argv[i], "--temp") == 0 && i + 1 < argc) temperature = std::atof(argv[++i]);
+        else if (std::strcmp(argv[i], "--top-k") == 0 && i + 1 < argc) top_k = std::atoi(argv[++i]);
+        else if (std::strcmp(argv[i], "--prompt-file") == 0 && i + 1 < argc) {
+            FILE * f = std::fopen(argv[++i], "rb");
+            if (!f) { std::fprintf(stderr, "cannot open prompt file\n"); return 2; }
+            text.clear();
+            char buf[4096];
+            size_t n;
+            while ((n = std::fread(buf, 1, sizeof(buf), f)) > 0) text.append(buf, n);
+            std::fclose(f);
+        }
         else if (std::strcmp(argv[i], "--seed") == 0 && i + 1 < argc) seed = (uint32_t) std::atoi(argv[++i]);
     }
     std::mt19937 rng(seed);
@@ -68,10 +80,19 @@ int main(int argc, char ** argv) {
             }
         } else {
             std::vector<double> probs(256);
+            std::vector<int> order(256);
+            for (int v = 0; v < 256; ++v) order[v] = v;
+            if (top_k > 0 && top_k < 256) {
+                std::partial_sort(order.begin(), order.begin() + top_k, order.end(),
+                                  [&](int a, int b) { return logits[a] > logits[b]; });
+            }
+            const int keep = (top_k > 0 && top_k < 256) ? top_k : 256;
             double maxv = -1e30;
-            for (int v = 0; v < 256; ++v) maxv = std::max<double>(maxv, logits[v]);
+            for (int i = 0; i < keep; ++i) maxv = std::max<double>(maxv, logits[order[i]]);
             double sum = 0.0;
-            for (int v = 0; v < 256; ++v) {
+            std::fill(probs.begin(), probs.end(), 0.0);
+            for (int i = 0; i < keep; ++i) {
+                const int v = order[i];
                 probs[v] = std::exp((logits[v] - maxv) / temperature);
                 sum += probs[v];
             }
