@@ -1917,6 +1917,11 @@ int llama_context::encode(const llama_batch_ext & batch_inp) {
         return -1;
     }
 
+    if (model.arch == LLM_ARCH_HNET && cparams.embeddings) {
+        LLAMA_LOG_ERROR("%s: hnet does not support encoder embeddings\n", __func__);
+        return -1;
+    }
+
     const auto & hparams = model.hparams;
 
     if (batch_inp.n_embd > 0 && batch_inp.n_embd != hparams.n_embd_inp_enc()) {
@@ -2003,6 +2008,68 @@ int llama_context::encode(const llama_batch_ext & batch_inp) {
     auto * t_logits  = res->get_logits();
     auto * t_embd    = res->get_embd_pooled() ? res->get_embd_pooled() : res->get_embd();
     auto * t_h_nextn = cparams.embeddings_nextn ? res->get_h_nextn() : nullptr;
+
+    if (model.arch == LLM_ARCH_HNET) {
+        auto * t_pack = t_embd;
+        GGML_ASSERT(t_pack != nullptr);
+
+        synchronize();
+
+        ggml_backend_t backend_pack = ggml_backend_sched_get_tensor_backend(sched.get(), t_pack);
+        GGML_ASSERT(backend_pack != nullptr);
+
+        const int64_t n_pos = t_pack->ne[1];
+        const int64_t width = t_pack->ne[0];
+        const int64_t d_enc = model.tok_embd->ne[0];
+
+        GGML_ASSERT(width == 2*d_enc + 1);
+
+        std::vector<float> packed(width*n_pos);
+        ggml_backend_tensor_get(t_pack, packed.data(), 0, packed.size()*sizeof(float));
+
+        cross.hnet_enc.resize(d_enc*n_pos);
+        cross.hnet_res.resize(d_enc*n_pos);
+        cross.hnet_p.resize(n_pos);
+        cross.hnet_chunk_idx.assign(n_pos, 0);
+        cross.hnet_byte_map.assign(n_pos, 0);
+        cross.hnet_pos.assign(n_pos, 0);
+
+        for (int64_t t = 0; t < n_pos; ++t) {
+            const float * row = packed.data() + t*width;
+
+            memcpy(cross.hnet_enc.data() + t*d_enc, row,          d_enc*sizeof(float));
+            memcpy(cross.hnet_res.data() + t*d_enc, row + d_enc,  d_enc*sizeof(float));
+
+            cross.hnet_p[t] = row[2*d_enc];
+        }
+
+        int64_t n_chunk = 0;
+        for (int64_t t = 0; t < n_pos; ++t) {
+            if (cross.hnet_p[t] > 0.5f) {
+                cross.hnet_chunk_idx[n_chunk] = (int32_t) t;
+                cross.hnet_pos[n_chunk]       = (int32_t) n_chunk;
+                ++n_chunk;
+            }
+
+            cross.hnet_byte_map[t] = (int32_t) (n_chunk - 1);
+        }
+
+        GGML_ASSERT(n_chunk > 0);
+
+        if (getenv("HNET_DEBUG")) {
+            std::fprintf(stderr, "hnet: n_pos=%lld n_chunk=%lld bounds", (long long) n_pos, (long long) n_chunk);
+            for (int64_t i = 0; i < n_chunk; ++i) std::fprintf(stderr, " %d", cross.hnet_chunk_idx[i]);
+            std::fprintf(stderr, "\n");
+            std::fprintf(stderr, "hnet: p");
+            for (int64_t t = 0; t < n_pos; ++t) std::fprintf(stderr, " %.4f", cross.hnet_p[t]);
+            std::fprintf(stderr, "\n");
+        }
+
+        cross.hnet_n_pos   = n_pos;
+        cross.hnet_n_chunk = n_chunk;
+
+        return 0;
+    }
 
     // extract logits
     if (logits.data && t_logits) {
@@ -2160,6 +2227,30 @@ static bool needs_raw_logits(const llama_ubatch & ubatch, const std::map<llama_s
 }
 
 int llama_context::decode(const llama_batch_ext & batch_inp) {
+    if (model.arch == LLM_ARCH_HNET) {
+        if (cparams.embeddings) {
+            LLAMA_LOG_ERROR("%s: hnet does not support decoder embeddings\n", __func__);
+            return -1;
+        }
+
+        if (cross.hnet_n_pos == 0) {
+            LLAMA_LOG_ERROR("%s: hnet decode requires a preceding encode of the same sequence\n", __func__);
+            return -1;
+        }
+
+        if ((int64_t) batch_inp.tokens.size() != cross.hnet_n_pos) {
+            LLAMA_LOG_ERROR("%s: hnet decode batch has %zu tokens, encoded sequence has %" PRId64 "\n",
+                    __func__, batch_inp.tokens.size(), cross.hnet_n_pos);
+            return -1;
+        }
+
+        if (cross.hnet_n_pos > (int64_t) cparams.n_ubatch) {
+            LLAMA_LOG_ERROR("%s: hnet sequence of %" PRId64 " tokens exceeds n_ubatch = %u\n",
+                    __func__, cross.hnet_n_pos, cparams.n_ubatch);
+            return -1;
+        }
+    }
+
     if (!memory) {
         LLAMA_LOG_DEBUG("%s: cannot decode batches with this context (calling encode() instead)\n", __func__);
         return encode(batch_inp);
@@ -2927,7 +3018,8 @@ uint32_t llama_context::graph_max_nodes(uint32_t n_tokens) const {
     } else if (model.arch == LLM_ARCH_HRM_TEXT) {
         // the 128-slot looped graph needs roughly one stack per token budget
         res = std::max<uint32_t>(n_tokens * 80, 64u * model.n_tensors());
-    } else if (model.arch == LLM_ARCH_QWEN3NEXT ||
+    } else if (model.arch == LLM_ARCH_HNET ||
+        model.arch == LLM_ARCH_QWEN3NEXT ||
         model.arch == LLM_ARCH_KIMI_LINEAR ||
         model.arch == LLM_ARCH_METIS16 ||
         model.arch == LLM_ARCH_BAILINGMOE3 ||

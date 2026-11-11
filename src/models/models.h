@@ -1031,6 +1031,14 @@ struct llama_model_hnet : public llama_model_base {
     void load_arch_hparams(llama_model_loader & ml) override;
     void load_arch_tensors(llama_model_loader & ml) override;
 
+    struct graph_enc : public llm_graph_context {
+        graph_enc(const llm_graph_params & params);
+    };
+
+    struct graph_dec : public llm_graph_context {
+        graph_dec(const llm_graph_params & params);
+    };
+
     std::vector<llama_layer_hnet_mamba2> enc_layers;
     std::vector<llama_layer_hnet_mamba2> dec_layers;
     std::vector<llama_layer_hnet_main>   main_layers;
@@ -1043,7 +1051,6 @@ struct llama_model_hnet : public llama_model_base {
     struct ggml_tensor * residual_proj   = nullptr;
     struct ggml_tensor * residual_proj_b = nullptr;
 
-    [[noreturn]]
     std::unique_ptr<llm_graph_context> build_arch_graph(const llm_graph_params & params) const override;
 };
 

@@ -2942,6 +2942,19 @@ llama_memory_i * llama_model::create_memory(const llama_memory_params & params, 
         return nullptr;
     }
 
+    if (arch == LLM_ARCH_HNET) {
+        return new llama_memory_recurrent(
+                *this,
+                params.no_alloc,
+                GGML_TYPE_F32,
+                GGML_TYPE_F32,
+                cparams.offload_kqv,
+                std::max((uint32_t) 1, cparams.n_seq_max),
+                cparams.n_seq_max,
+                cparams.n_rs_seq,
+                [](uint32_t) { return false; });
+    }
+
     switch (arch) {
         // Models that need specific instantiation should be handled in the
         // switch statement

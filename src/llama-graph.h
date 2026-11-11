@@ -99,6 +99,17 @@ struct llama_cross {
 
     // needed to construct the cross-attention mask in the decoder
     std::vector<std::set<llama_seq_id>> seq_ids_enc;
+
+    std::vector<float> hnet_enc;
+    std::vector<float> hnet_res;
+    std::vector<float> hnet_p;
+
+    std::vector<int32_t> hnet_chunk_idx;
+    std::vector<int32_t> hnet_byte_map;
+    std::vector<int32_t> hnet_pos;
+
+    int64_t hnet_n_pos   = 0;
+    int64_t hnet_n_chunk = 0;
 };
 
 struct llm_graph_params;
@@ -327,6 +338,25 @@ public:
     void set_input(const llama_ubatch * ubatch) override;
 
     ggml_tensor * cross_embd; // F32 [n_embd, n_outputs_enc]
+
+    const llama_cross * cross;
+};
+
+class llm_graph_input_hnet : public llm_graph_input_i {
+public:
+    explicit llm_graph_input_hnet(const llama_cross * cross) : cross(cross) {}
+    virtual ~llm_graph_input_hnet() = default;
+
+    void set_input(const llama_ubatch * ubatch) override;
+
+    ggml_tensor * tokens    = nullptr;
+    ggml_tensor * enc       = nullptr;
+    ggml_tensor * res       = nullptr;
+    ggml_tensor * prob      = nullptr;
+    ggml_tensor * chunk_idx = nullptr;
+    ggml_tensor * byte_map  = nullptr;
+    ggml_tensor * pos       = nullptr;
+    ggml_tensor * ids       = nullptr;
 
     const llama_cross * cross;
 };

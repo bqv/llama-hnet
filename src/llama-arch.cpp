@@ -413,6 +413,7 @@ static const std::map<llm_kv, const char *> LLM_KV_NAMES = {
     { LLM_KV_HNET_D_FF_MAIN,      "%s.d_ff_main"      },
     { LLM_KV_HNET_TARGET_RATIO,   "%s.target_ratio"   },
     { LLM_KV_HNET_ROPE_BASE,      "%s.rope_base"      },
+    { LLM_KV_HNET_ROTARY_EMB_DIM, "%s.rotary_emb_dim" },
     { LLM_KV_HNET_DECHUNK_MODE,   "%s.dechunk_mode"   },
 
     { LLM_KV_KDA_HEAD_DIM,         "%s.kda.head_dim"         },

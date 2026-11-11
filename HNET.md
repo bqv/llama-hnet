@@ -13,14 +13,43 @@ maintenance commitment that llama.cpp requires. Treat it as a research fork that
 | GGUF schema (`hnet` arch, 28 tensor types, 13 metadata keys) | done |
 | converter from safetensors | done, `convert_hnet_to_gguf.py` |
 | model loading, tokeniser-less byte vocab | done, verified on a 195M Finnish checkpoint |
-| inference graph | **not implemented** - `build_arch_graph` aborts by design |
-| numeric parity against the PyTorch reference | next |
+| inference graph | done - two passes, `llama_encode` then `llama_decode` |
+| CPU smoke test (finite logits, 195M) | **passing** |
+| numeric parity against the PyTorch reference | segmentation identical at 2.36M and 195M; logits within ~0.5% |
 
-Loading works end to end; the fork prints parameters and then stops at:
+Loads and computes end to end on CPU, and matches the PyTorch reference on a 2.36M-parameter model with 24 byte
+tokens (`tests/hnet/gen_ref.py` for the reference, `tests/hnet/smoke.cpp` for the C++ side):
 
 ```
-hnet: graph is not implemented
+chunk boundaries     11 of 24, identical positions in both [0 2 4 5 8 12 14 17 19 21 22]
+boundary probs       agree to ~1e-3  (0.4386 vs 0.4395, 0.5149 vs 0.5156, ...)
+logits               max abs 0.090, mean abs 0.022, same argmax
 ```
+
+At 195M, against the trained Finnish weights and with `hnet.rotary_emb_dim` honoured (48 of 64):
+
+```
+chunk boundaries     12 of 24, identical positions in both [0 2 5 7 13 15 16 18 19 20 22 23]
+logits               max abs 0.132, mean abs 0.044, same argmax
+```
+
+The segmentation being exact at both sizes says the router, the cosine, the threshold, the gather and the RoPE width
+are right. The remaining logit gap is precision, not logic: the reference runs in bf16 on the GPU and rounds the
+de-chunk EMA inputs to bf16, while this path computes in F32 with 16-bit weights.
+
+## Tensor dtypes the kernels require
+
+Not a preference; these are the assumptions in ggml's CPU kernels:
+
+| tensor class | type | why |
+|---|---|---|
+| norms, `dt_bias`, `D`, `conv1d.bias`, `residual_proj.bias` | F32 | the elementwise binary op has no F32 x F16 case |
+| `conv1d.weight` | F32 | `ggml_ssm_conv` asserts `nb[0] == sizeof(float)` |
+| `A_log` | 16-bit fine | the graph casts to F32 before `exp` |
+| matmul weights | 16-bit | quantisable |
+
+The converter applies this table. It was learned the hard way: a checkpoint with 16-bit norms aborts on the
+first `mul` of the encode pass, and 16-bit conv weights abort in `ssm_conv`.
 
 ## What an H-Net is
 
@@ -53,10 +82,11 @@ The input directory needs `config.json` and `model.safetensors` in the format wr
 
 Two layout facts the converter enforces, because getting them wrong loads cleanly and produces nonsense:
 
-- torch `Linear` weights are `[out, in]`; ggml wants `[in, out]`, so every 2-D weight is transposed, except
-  `token_embd`;
-- mamba `conv1d.weight` is `[d_inner, 1, d_conv]` in torch but `ggml_ssm_conv` requires the matrix
-  `[d_conv, d_inner]`.
+- no dimension transposition is needed: GGUF writes tensor dims reversed, so a torch `[out, in]` weight already
+  arrives as ggml `ne[0] = in`, which is what `ggml_mul_mat` wants. Transposing it produces a double reversal that
+  fails for rectangular tensors and silently computes wrong values for square ones (router, `residual_proj`);
+- mamba `conv1d.weight` is `[d_inner, 1, d_conv]` in torch; squeeze the middle axis only, giving `[d_inner, d_conv]`,
+  which arrives as `ne[0] = d_conv` as `ggml_ssm_conv` requires.
 
 ## Testing
 

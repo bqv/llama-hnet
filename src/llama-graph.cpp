@@ -536,6 +536,37 @@ void llm_graph_input_cross_embd::set_input(const llama_ubatch * ubatch) {
     }
 }
 
+void llm_graph_input_hnet::set_input(const llama_ubatch * ubatch) {
+    if (tokens) {
+        GGML_ASSERT(ubatch->token != nullptr);
+        GGML_ASSERT((int64_t) ggml_nelements(tokens) == (int64_t) ubatch->n_tokens);
+        ggml_backend_tensor_set(tokens, ubatch->token, 0, ggml_nbytes(tokens));
+    }
+
+    if (ids) {
+        const int32_t zero = 0;
+        ggml_backend_tensor_set(ids, &zero, 0, ggml_nbytes(ids));
+    }
+
+    if (enc) {
+        GGML_ASSERT(cross->hnet_n_pos == (int64_t) ubatch->n_tokens);
+
+        GGML_ASSERT((int64_t) cross->hnet_enc.size() == ggml_nelements(enc));
+        GGML_ASSERT((int64_t) cross->hnet_res.size() == ggml_nelements(res));
+        GGML_ASSERT((int64_t) cross->hnet_p.size()   == ggml_nelements(prob));
+        GGML_ASSERT((int64_t) cross->hnet_chunk_idx.size() == ggml_nelements(chunk_idx));
+        GGML_ASSERT((int64_t) cross->hnet_byte_map.size()  == ggml_nelements(byte_map));
+        GGML_ASSERT((int64_t) cross->hnet_pos.size()       == ggml_nelements(pos));
+
+        ggml_backend_tensor_set(enc,       cross->hnet_enc.data(), 0, ggml_nbytes(enc));
+        ggml_backend_tensor_set(res,       cross->hnet_res.data(), 0, ggml_nbytes(res));
+        ggml_backend_tensor_set(prob,      cross->hnet_p.data(),   0, ggml_nbytes(prob));
+        ggml_backend_tensor_set(chunk_idx, cross->hnet_chunk_idx.data(), 0, ggml_nbytes(chunk_idx));
+        ggml_backend_tensor_set(byte_map,  cross->hnet_byte_map.data(),  0, ggml_nbytes(byte_map));
+        ggml_backend_tensor_set(pos,       cross->hnet_pos.data(),       0, ggml_nbytes(pos));
+    }
+}
+
 template <typename T>
 static void print_mask(const T * data, int64_t n_tokens, int64_t n_kv, int64_t n_swa, llama_swa_type swa_type) {
     LLAMA_LOG_DEBUG("%s: === Attention mask ===\n", __func__);

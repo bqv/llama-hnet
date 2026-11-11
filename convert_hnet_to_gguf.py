@@ -84,6 +84,7 @@ def read_config(path):
         "n_main": n_main,
         "d_ff_main": int(cfg["d_intermediate"][1]),
         "n_head_main": int(cfg["attn_cfg"]["num_heads"][1]),
+        "rotary_emb_dim": int(cfg["attn_cfg"].get("rotary_emb_dim", [0, 0])[1] or 0),
         "n_head_enc": int(cfg["attn_cfg"]["num_heads"][0]),
         "head_dim_enc": int(d_model[0]) // int(cfg["attn_cfg"]["num_heads"][0]),
     }
@@ -112,6 +113,8 @@ def main():
     writer.add_uint32("hnet.n_main", hparams["n_main"])
     writer.add_uint32("hnet.n_head_main", hparams["n_head_main"])
     writer.add_uint32("hnet.n_head_enc", hparams["n_head_enc"])
+    if hparams["rotary_emb_dim"] > 0:
+        writer.add_uint32("hnet.rotary_emb_dim", hparams["rotary_emb_dim"])
     writer.add_uint32("hnet.head_dim_enc", hparams["head_dim_enc"])
     writer.add_uint32("hnet.d_ff_main", hparams["d_ff_main"])
     writer.add_float32("hnet.target_ratio", args.target_ratio)
@@ -128,10 +131,12 @@ def main():
                 continue
             tensor = f.get_tensor(name)
             if tensor.ndim == 3 and "conv1d.weight" in target:
-                tensor = tensor.squeeze(1).t().contiguous()
-            elif tensor.ndim == 2 and target != "token_embd.weight":
-                tensor = tensor.t().contiguous()
-            if tensor.dtype == torch.bfloat16:
+                tensor = tensor.squeeze(1).contiguous()
+            elif tensor.ndim == 2:
+                tensor = tensor.contiguous()
+            if tensor.ndim <= 1 or target.endswith("norm.weight") or target.endswith("rmsnorm.weight") or target.endswith("conv1d.weight"):
+                writer.add_tensor(target, tensor.to(torch.float32).numpy())
+            elif tensor.dtype == torch.bfloat16:
                 array = tensor.view(torch.int16).numpy()
                 writer.add_tensor(target, array, raw_dtype=GGMLQuantizationType.BF16)
             else:
