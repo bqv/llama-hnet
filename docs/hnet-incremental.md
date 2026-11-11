@@ -59,6 +59,13 @@ The next attempt should stop adapting: build the hnet encoder and decoder tensor
 pass `n_seqs = 1`, and copy the upstream builder almost verbatim. That way the shapes the code assumes are the
 shapes the graph has.
 
+The fourth attempt narrowed it further. With a memory context finally passed to `process_ubatch` for the encoder
+graph, the crash moved into `build_rs_inp_impl`, in `ggml_view_1d(ctx0, inp->s_copy, n_rs - 1, ...)`: `n_rs` is zero
+for the encoder batch, so `n_rs - 1` underflows and the view is rejected. `get_n_rs()` reports the number of sequence
+rows the memory context reserved, and `memory->init_batch(*balloc, cparams.n_ubatch, true)` in the encoder path
+appears to reserve none, unlike the decode path where the same call reports one. That is the concrete next thing to
+understand: why `init_batch` yields zero sequence rows for the encoder ubatch.
+
 Also fixed along the way: `create_memory()` passed a layer filter returning false, so the recurrent memory skipped
 every layer and the state accessors were null for all indices. That was the cause of the first two failures.
 
