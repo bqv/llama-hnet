@@ -36,6 +36,14 @@ void llama_model_hnet::load_arch_hparams(llama_model_loader & ml) {
     hparams.n_embd_head_v_full = n_embd_head_main;
     hparams.n_rot_full         = n_embd_head_main;
 
+    ml.get_key(LLM_KV_HNET_SSM_D_STATE, hparams.ssm_d_state, false);
+    ml.get_key(LLM_KV_HNET_SSM_D_CONV,  hparams.ssm_d_conv,  false);
+    ml.get_key(LLM_KV_HNET_SSM_N_GROUP, hparams.ssm_n_group, false);
+
+    uint32_t ssm_expand = 2;
+    ml.get_key(LLM_KV_HNET_SSM_EXPAND, ssm_expand, false);
+    hparams.ssm_d_inner = ssm_expand * hparams.hnet_d_enc;
+
     uint32_t rotary_emb_dim = n_embd_head_main;
     ml.get_key(LLM_KV_HNET_ROTARY_EMB_DIM, rotary_emb_dim, false);
     hparams.n_rot_full = std::min<uint32_t>(hparams.n_rot_full, rotary_emb_dim);

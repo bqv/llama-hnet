@@ -86,6 +86,10 @@ def read_config(path):
         "n_head_main": int(cfg["attn_cfg"]["num_heads"][1]),
         "rotary_emb_dim": int(cfg["attn_cfg"].get("rotary_emb_dim", [0, 0])[1] or 0),
         "n_head_enc": int(cfg["attn_cfg"]["num_heads"][0]),
+        "ssm_d_state": int(cfg["ssm_cfg"]["d_state"]),
+        "ssm_d_conv": int(cfg["ssm_cfg"]["d_conv"]),
+        "ssm_expand": int(cfg["ssm_cfg"]["expand"]),
+        "ssm_n_group": int(cfg["ssm_cfg"].get("n_groups", 1)),
         "head_dim_enc": int(d_model[0]) // int(cfg["attn_cfg"]["num_heads"][0]),
     }
 
@@ -113,6 +117,10 @@ def main():
     writer.add_uint32("hnet.n_main", hparams["n_main"])
     writer.add_uint32("hnet.n_head_main", hparams["n_head_main"])
     writer.add_uint32("hnet.n_head_enc", hparams["n_head_enc"])
+    writer.add_uint32("hnet.ssm_d_state", hparams["ssm_d_state"])
+    writer.add_uint32("hnet.ssm_d_conv", hparams["ssm_d_conv"])
+    writer.add_uint32("hnet.ssm_expand", hparams["ssm_expand"])
+    writer.add_uint32("hnet.ssm_n_group", hparams["ssm_n_group"])
     if hparams["rotary_emb_dim"] > 0:
         writer.add_uint32("hnet.rotary_emb_dim", hparams["rotary_emb_dim"])
     writer.add_uint32("hnet.head_dim_enc", hparams["head_dim_enc"])
