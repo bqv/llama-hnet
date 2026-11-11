@@ -71,9 +71,19 @@ succeeds and the memory context reserves one sequence row (`n_rs = 1`), but the 
 reports `n_seqs = 23` for a 23-token, single-sequence batch. `build_rs_inp_impl` then sizes `s_copy_main` from
 `ubatch.n_seqs` (23) inside an `s_copy` sized by `n_rs` (1), which is exactly the bounds assert.
 
+The cause is `balloc->split_simple(n_tokens)` in `encode()`: `split_simple` calls `ubatch_add(idxs, idxs.size(), false)`,
+i.e. it reports one sequence per token by construction. Calling `split_equal(n_tokens, true, 0)` instead makes
+`ubatch.n_seqs` 1 for a 23-token single-sequence batch, which was verified.
+
 So the remaining defect is the sequence count on the encode path: the encode batch is being expanded to one
 sequence per token somewhere between the caller and `process_ubatch`, while the memory module correctly sees one.
 That is the thing to fix next, and it is a caller-side batch-construction issue rather than a state-graph issue.
+
+With `split_equal` in place and conv state wired through `build_rs`/`build_conv_state_store`, `hnet-segment`
+produced the correct boundaries, but `hnet-decode` then failed (`decode rc = -1`), most likely because the encoder
+now leaves recurrent state committed and the decode batch's `balloc` sees non-consecutive positions. Both changes
+were reverted together; the next attempt should keep the encoder's memory context private to the encoder pass
+(or clear it before decode) rather than sharing one cell across the two passes.
 
 Also fixed along the way: `create_memory()` passed a layer filter returning false, so the recurrent memory skipped
 every layer and the state accessors were null for all indices. That was the cause of the first two failures.
