@@ -131,8 +131,9 @@ If the logits agree, the C++ is right in the only sense that matters.
 - **The main stack runs `n_tokens` rows, not `n_chunk` rows.** Junk rows past the last chunk are hidden by the
   causal mask and never read, but they cost about 4x the main-stack compute at the target 4:1 chunk ratio. Fixing
   it means building the decode graph after the host step, with `n_chunk` known.
-- **No server surface.** `/v1/segment` would be a thin handler over `llama_hnet_boundaries`, but the server's
-  slot and task machinery has to be respected, so it is not a five-line change.
+- **No server surface.** `/v1/segment` was attempted and reverted: llama-server allocates its context for the
+  standard decode flow, and calling `llama_encode` on it trips `n_outputs_max` and the slot bookkeeping. Doing it
+  properly means plumbing a segment task type through the queue and the slot machinery, not a handler.
 - **Single sequence, single ubatch.** Packed multi-sequence batches would need per-sequence byte maps and positions.
 - **Precision.** Logits agree with the PyTorch reference to ~0.5%, not bit-exactly: the reference runs bf16 on the
   GPU, this runs F32 on the CPU with 16-bit weights.
