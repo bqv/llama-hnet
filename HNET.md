@@ -177,6 +177,9 @@ Sizes and CPU generation (12 bytes, 195M context):
 The quantised 501M produces `Suomen kieli on kansainväli` in under two seconds on CPU, and its segmentation
 differs slightly from the F32 model, as expected when the router weights lose precision.
 
+Both checkpoints are verified: the parity fixture matches on 195M and 501M, `hnet-segment` gives identical chunk
+boundaries from the CLI and from `POST /v1/segment`, and generation runs on the F32 and Q4_0 variants of each.
+
 ## Backends
 
 A CUDA build works (`-DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=61 -DCMAKE_CUDA_HOST_COMPILER=/usr/bin/gcc-14`,
