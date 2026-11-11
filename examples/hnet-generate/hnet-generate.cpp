@@ -2,7 +2,9 @@
 
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
+#include <random>
 #include <string>
 #include <vector>
 
@@ -15,10 +17,13 @@ int main(int argc, char ** argv) {
     const char * model_path = argv[1];
     std::string text = argv[2];
     int n_predict = argc > 3 ? std::atoi(argv[3]) : 24;
-    bool greedy = true;
+    float temperature = 0.0f;
+    uint32_t seed = 0;
     for (int i = 3; i < argc; ++i) {
-        if (std::strcmp(argv[i], "--sample") == 0) greedy = false;
+        if (std::strcmp(argv[i], "--temp") == 0 && i + 1 < argc) temperature = std::atof(argv[++i]);
+        else if (std::strcmp(argv[i], "--seed") == 0 && i + 1 < argc) seed = (uint32_t) std::atoi(argv[++i]);
     }
+    std::mt19937 rng(seed);
 
     llama_backend_init();
     llama_model_params mp = llama_model_default_params();
@@ -55,8 +60,24 @@ int main(int argc, char ** argv) {
         if (!logits) { std::fprintf(stderr, "no logits\n"); return 1; }
 
         int best = 0;
-        for (int v = 1; v < 256; ++v) {
-            if (logits[v] > logits[best]) best = v;
+        if (temperature <= 0.0f) {
+            for (int v = 1; v < 256; ++v) {
+                if (logits[v] > logits[best]) best = v;
+            }
+        } else {
+            std::vector<double> probs(256);
+            double maxv = -1e30;
+            for (int v = 0; v < 256; ++v) maxv = std::max<double>(maxv, logits[v]);
+            double sum = 0.0;
+            for (int v = 0; v < 256; ++v) {
+                probs[v] = std::exp((logits[v] - maxv) / temperature);
+                sum += probs[v];
+            }
+            double r = std::uniform_real_distribution<double>(0.0, sum)(rng);
+            for (int v = 0; v < 256; ++v) {
+                r -= probs[v];
+                if (r <= 0.0) { best = v; break; }
+            }
         }
 
         text.push_back((char) best);

@@ -109,6 +109,9 @@ incremental state yet, so this is O(n^2) and CPU-appropriate rather than fast):
 ```sh
 ./build/bin/hnet-generate model.gguf "Suomen kieli on " 12
 Suomen kieli on kieli, joka
+
+./build/bin/hnet-generate model.gguf "Suomen kieli on " 24 --temp 0.8 --seed 7
+Suomen kieli on jatkoa ja se on lähes s
 ```
 
 That is the 195M Finnish checkpoint, greedy, on a CPU: the first sentence it ever produced through llama.cpp.
