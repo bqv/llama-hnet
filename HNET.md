@@ -88,6 +88,19 @@ Two layout facts the converter enforces, because getting them wrong loads cleanl
 - mamba `conv1d.weight` is `[d_inner, 1, d_conv]` in torch; squeeze the middle axis only, giving `[d_inner, d_conv]`,
   which arrives as `ne[0] = d_conv` as `ggml_ssm_conv` requires.
 
+## Segmenting text
+
+`hnet-segment` exposes the learned chunking directly - pass A of the two-pass graph, no generation:
+
+```sh
+printf 'Suomen kieli on vaikea.' | ./build/bin/hnet-segment model.gguf
+|S|uom|en| kieli| o|n| va|i|ke|a|.
+chunks 11 of 23 bytes
+```
+
+`--json` emits the boundary positions and the per-byte boundary probabilities instead of the marked text, which
+is what the `hnet-probe` results in the Finnish write-up were measured with.
+
 ## Testing
 
 The plan is numeric parity against the reference PyTorch stack, not a code review: same weights, same byte

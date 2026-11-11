@@ -4823,6 +4823,29 @@ float * llama_get_logits(llama_context * ctx) {
     return ctx->get_logits();
 }
 
+size_t llama_hnet_n_boundaries(llama_context * ctx) {
+    const auto & cross = ctx->get_cross();
+    return (size_t) cross.hnet_n_chunk;
+}
+
+size_t llama_hnet_boundaries(llama_context * ctx, int32_t * positions, size_t capacity) {
+    const auto & cross = ctx->get_cross();
+    const size_t n = std::min(capacity, (size_t) cross.hnet_n_chunk);
+    for (size_t i = 0; i < n; ++i) {
+        positions[i] = cross.hnet_chunk_idx[i];
+    }
+    return n;
+}
+
+size_t llama_hnet_probs(llama_context * ctx, float * out, size_t capacity) {
+    const auto & cross = ctx->get_cross();
+    const size_t n = std::min(capacity, (size_t) cross.hnet_n_pos);
+    for (size_t i = 0; i < n; ++i) {
+        out[i] = cross.hnet_p[i];
+    }
+    return n;
+}
+
 float * llama_get_logits_ith(llama_context * ctx, int32_t i) {
     ctx->synchronize();
 

@@ -286,6 +286,7 @@ public:
 
     bool set_sampler(llama_seq_id seq_id, llama_sampler * sampler);
 
+    const llama_cross & get_cross() const { return cross; }
 private:
     llm_graph_result * get_gf_res_prev();
 

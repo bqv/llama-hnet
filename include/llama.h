@@ -1148,6 +1148,12 @@ extern "C" {
     // returns NULL for invalid ids.
     LLAMA_API float * llama_get_logits_ith(struct llama_context * ctx, int32_t i);
 
+    // hnet only: number of learned chunk boundaries from the last llama_encode, and the
+    // boundary positions and probabilities. Returns 0 for any other architecture.
+    LLAMA_API size_t llama_hnet_n_boundaries(struct llama_context * ctx);
+    LLAMA_API size_t llama_hnet_boundaries(struct llama_context * ctx, int32_t * positions, size_t capacity);
+    LLAMA_API size_t llama_hnet_probs(struct llama_context * ctx, float * out, size_t capacity);
+
     // Get all output token embeddings.
     // when pooling_type == LLAMA_POOLING_TYPE_NONE or when using a generative model,
     // the embeddings for which llama_batch.logits[i] != 0 are stored contiguously
