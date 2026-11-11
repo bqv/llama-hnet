@@ -48,6 +48,9 @@ Not a preference; these are the assumptions in ggml's CPU kernels:
 | `A_log` | 16-bit fine | the graph casts to F32 before `exp` |
 | matmul weights | 16-bit | quantisable |
 
+The converter also writes the Mamba-2 geometry (`ssm_d_state`, `ssm_d_conv`, `ssm_expand`, `ssm_n_group`).
+Checkpoints converted before those keys existed must be reconverted: without them the recurrent cache sizes to zero.
+
 The converter applies this table. It was learned the hard way: a checkpoint with 16-bit norms aborts on the
 first `mul` of the encode pass, and 16-bit conv weights abort in `ssm_conv`.
 
