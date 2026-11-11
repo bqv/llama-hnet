@@ -144,6 +144,11 @@ The `hnet` architecture, converter and loading path in this fork were written wi
 and should be treated accordingly. Upstream llama.cpp explicitly forbids AI-generated contributions, which is one
 of the reasons this lives here.
 
+## Numbers on this box
+
+Generation at 195M, CPU (`-ngl 0`), greedy, 12 bytes: about three minutes, because every step re-encodes the
+prefix. Prefill of a 24-byte prompt costs roughly 20 s cold; the parity run above reuses one loaded context.
+
 ## Licence
 
 MIT, inherited from llama.cpp. H-Net is by Sukjun Hwang, Brandon Wang and Albert Gu.
