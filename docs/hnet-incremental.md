@@ -66,6 +66,15 @@ rows the memory context reserved, and `memory->init_batch(*balloc, cparams.n_uba
 appears to reserve none, unlike the decode path where the same call reports one. That is the concrete next thing to
 understand: why `init_batch` yields zero sequence rows for the encoder ubatch.
 
+Probing the encoder path directly answers the `n_rs` question and replaces it with a different one: `init_batch`
+succeeds and the memory context reserves one sequence row (`n_rs = 1`), but the ubatch handed to `process_ubatch`
+reports `n_seqs = 23` for a 23-token, single-sequence batch. `build_rs_inp_impl` then sizes `s_copy_main` from
+`ubatch.n_seqs` (23) inside an `s_copy` sized by `n_rs` (1), which is exactly the bounds assert.
+
+So the remaining defect is the sequence count on the encode path: the encode batch is being expanded to one
+sequence per token somewhere between the caller and `process_ubatch`, while the memory module correctly sees one.
+That is the thing to fix next, and it is a caller-side batch-construction issue rather than a state-graph issue.
+
 Also fixed along the way: `create_memory()` passed a layer filter returning false, so the recurrent memory skipped
 every layer and the state accessors were null for all indices. That was the cause of the first two failures.
 
