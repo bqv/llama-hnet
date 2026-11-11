@@ -145,6 +145,25 @@ The `hnet` architecture, converter and loading path in this fork were written wi
 and should be treated accordingly. Upstream llama.cpp explicitly forbids AI-generated contributions, which is one
 of the reasons this lives here.
 
+## Quantisation
+
+`llama-quantize` works on these checkpoints, with one constraint: the convolution weights must stay F32, because
+`ggml_ssm_conv` asserts on float strides and the quantiser treats a 2-D conv weight as a matrix:
+
+```sh
+llama-quantize --tensor-type "conv1d.weight=f32" model.gguf model-q4.gguf Q4_0
+```
+
+Sizes and CPU generation (12 bytes, 195M context):
+
+| model | F32 | Q4_0 | 12 bytes |
+|---|---:|---:|---:|
+| 195M | 373 MB | 106 MB | - |
+| 501M | 956 MB | 270 MB | 1.9 s |
+
+The quantised 501M produces `Suomen kieli on kansainväli` in under two seconds on CPU, and its segmentation
+differs slightly from the F32 model, as expected when the router weights lose precision.
+
 ## Backends
 
 A CUDA build works (`-DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=61 -DCMAKE_CUDA_HOST_COMPILER=/usr/bin/gcc-14`,
