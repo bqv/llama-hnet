@@ -145,6 +145,19 @@ The `hnet` architecture, converter and loading path in this fork were written wi
 and should be treated accordingly. Upstream llama.cpp explicitly forbids AI-generated contributions, which is one
 of the reasons this lives here.
 
+## Backends
+
+A CUDA build works (`-DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=61 -DCMAKE_CUDA_HOST_COMPILER=/usr/bin/gcc-14`,
+because the installed nvcc rejects gcc 16), and both tools take `--ngl N` to offload.
+
+Two findings from running it on a 2 GiB GT 1030:
+
+- **Memory**: a 195M model does not fit alongside other resident models on that card; only the tiny test model runs.
+- **Precision changes the segmentation.** The same 23 bytes segmented as `|S|uom|en| kieli|...` on CPU (F32) and
+  `|S|uo|m|en |kiel|...` on GPU (fp16 compute). Boundary probabilities sit within a few thousandths of the 0.5
+  threshold, so lower-precision kernels flip decisions. The F32 CPU path is the one that matches the PyTorch
+  reference.
+
 ## Numbers on this box
 
 Generation at 195M, CPU (`-ngl 0`), greedy, 12 bytes: about three minutes, because every step re-encodes the

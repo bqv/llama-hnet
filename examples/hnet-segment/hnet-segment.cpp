@@ -22,9 +22,11 @@ int main(int argc, char ** argv) {
     }
 
     bool json = false;
+    int n_gpu_layers = 0;
     const char * text_path = nullptr;
     for (int i = 2; i < argc; ++i) {
         if (std::strcmp(argv[i], "--json") == 0) json = true;
+        else if (std::strcmp(argv[i], "--ngl") == 0 && i + 1 < argc) n_gpu_layers = std::atoi(argv[++i]);
         else text_path = argv[i];
     }
 
@@ -33,7 +35,7 @@ int main(int argc, char ** argv) {
 
     llama_backend_init();
     llama_model_params mp = llama_model_default_params();
-    mp.n_gpu_layers = 0;
+    mp.n_gpu_layers = n_gpu_layers;
     llama_model * model = llama_model_load_from_file(argv[1], mp);
     if (!model) { std::fprintf(stderr, "load failed\n"); return 1; }
 

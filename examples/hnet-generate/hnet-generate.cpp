@@ -17,17 +17,19 @@ int main(int argc, char ** argv) {
     const char * model_path = argv[1];
     std::string text = argv[2];
     int n_predict = argc > 3 ? std::atoi(argv[3]) : 24;
+    int n_gpu_layers = 0;
     float temperature = 0.0f;
     uint32_t seed = 0;
     for (int i = 3; i < argc; ++i) {
-        if (std::strcmp(argv[i], "--temp") == 0 && i + 1 < argc) temperature = std::atof(argv[++i]);
+        if (std::strcmp(argv[i], "--ngl") == 0 && i + 1 < argc) n_gpu_layers = std::atoi(argv[++i]);
+        else if (std::strcmp(argv[i], "--temp") == 0 && i + 1 < argc) temperature = std::atof(argv[++i]);
         else if (std::strcmp(argv[i], "--seed") == 0 && i + 1 < argc) seed = (uint32_t) std::atoi(argv[++i]);
     }
     std::mt19937 rng(seed);
 
     llama_backend_init();
     llama_model_params mp = llama_model_default_params();
-    mp.n_gpu_layers = 0;
+    mp.n_gpu_layers = n_gpu_layers;
     llama_model * model = llama_model_load_from_file(model_path, mp);
     if (!model) { std::fprintf(stderr, "load failed\n"); return 1; }
 
