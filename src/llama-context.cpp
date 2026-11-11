@@ -1940,6 +1940,10 @@ int llama_context::encode(const llama_batch_ext & batch_inp) {
 
     // note: during encode, we skip position continuity checks and output all tokens
     //       a decoder without memory (see decode()) outputs the marked tokens, unless it extracts embeddings
+    if (model.arch == LLM_ARCH_HNET && memory) {
+        memory->clear(true);
+    }
+
     if (!balloc->init(batch_inp, model.vocab, memory || cparams.embeddings)) {
         LLAMA_LOG_ERROR("%s: failed to initialize batch\n", __func__);
         return -1;

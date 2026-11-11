@@ -101,6 +101,19 @@ chunks 11 of 23 bytes
 `--json` emits the boundary positions and the per-byte boundary probabilities instead of the marked text, which
 is what the `hnet-probe` results in the Finnish write-up were measured with.
 
+## Generating text
+
+`hnet-generate` runs the pair of passes in a loop, re-encoding the whole sequence each step (there is no
+incremental state yet, so this is O(n^2) and CPU-appropriate rather than fast):
+
+```sh
+./build/bin/hnet-generate model.gguf "Suomen kieli on " 12
+Suomen kieli on kieli, joka
+```
+
+That is the 195M Finnish checkpoint, greedy, on a CPU: the first sentence it ever produced through llama.cpp.
+Each step reports the chunk count so the segmentation growth is visible as the sequence lengthens.
+
 ## Testing
 
 The plan is numeric parity against the reference PyTorch stack, not a code review: same weights, same byte
