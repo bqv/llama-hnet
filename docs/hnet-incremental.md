@@ -46,6 +46,22 @@ recurrent memory purely to satisfy the decode guard, and the mamba layer builder
 Step 4 is the acceptance test: identical bytes, much faster. Everything before it can ship without changing
 observable behaviour, which is why the parity fixture stays useful throughout.
 
+## Why the first three attempts failed
+
+Three attempts to bolt recurrent state onto the existing graph functions segfaulted at run time. The common cause
+was not the state maths: it was the tensor layout. The upstream mamba-2 builder assumes three dimensions with an
+explicit `n_seqs` axis (`{d_conv-1, conv_dim, n_seqs}`, `{d_state, head_dim, n_head, n_seqs}`, scan rows indexed by
+`ids`), and our graphs build two-dimensional tensors `{width, n_tokens}` with the sequence dimension implied. Every
+port so far has been an adaptation of 3-D code to 2-D tensors, and each adaptation has produced a view or a cpy
+whose extents do not match.
+
+The next attempt should stop adapting: build the hnet encoder and decoder tensors as 3-D `{width, n_tokens, 1}`,
+pass `n_seqs = 1`, and copy the upstream builder almost verbatim. That way the shapes the code assumes are the
+shapes the graph has.
+
+Also fixed along the way: `create_memory()` passed a layer filter returning false, so the recurrent memory skipped
+every layer and the state accessors were null for all indices. That was the cause of the first two failures.
+
 ## Blocker to be aware of
 
 The main stack currently has no KV cache and runs `n_tokens` rows instead of `n_chunk` rows. Attempting to size it
