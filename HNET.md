@@ -150,13 +150,12 @@ of the reasons this lives here.
 A CUDA build works (`-DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=61 -DCMAKE_CUDA_HOST_COMPILER=/usr/bin/gcc-14`,
 because the installed nvcc rejects gcc 16), and both tools take `--ngl N` to offload.
 
-Two findings from running it on a 2 GiB GT 1030:
+Running it on a 2 GiB GT 1030, once a resident model was unloaded to make room:
 
-- **Memory**: a 195M model does not fit alongside other resident models on that card; only the tiny test model runs.
-- **Precision changes the segmentation.** The same 23 bytes segmented as `|S|uom|en| kieli|...` on CPU (F32) and
-  `|S|uo|m|en |kiel|...` on GPU (fp16 compute). Boundary probabilities sit within a few thousandths of the 0.5
-  threshold, so lower-precision kernels flip decisions. The F32 CPU path is the one that matches the PyTorch
-  reference.
+- the 195M model needs ~372 MiB and fits in about 1 GiB free;
+- generation of 60 bytes took 6.0 s including model load, against roughly three minutes for 12 bytes on CPU;
+- segmentation matches the CPU exactly (`|S|uom|en| kieli| o|n| va|i|ke|a|.`, 11 chunks of 23 bytes), so fp16
+  compute does not disturb the boundary decisions in practice.
 
 ## Numbers on this box
 
